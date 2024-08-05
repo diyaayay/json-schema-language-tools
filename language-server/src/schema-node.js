@@ -20,13 +20,13 @@ export const cons = (uri, pointer, value, type, children, parent, offset, textLe
 /** @type Type.get */
 export const get = (uri, node) => {
   const schemaId = toAbsoluteUri(resolveIri(uri, node?.baseUri));
-  const schemaResource = node.baseUri === schemaId ? node : getSchemaResource(schemaId);
+  const schemaResource = getSchemaResource(schemaId);
   if (!schemaResource) {
     return;
   }
 
   const fragment = uriFragment(uri);
-  const pointer = fragment === "" || fragment[0] === "/" ? fragment : node.anchors[fragment];
+  const pointer = fragment === "" || fragment[0] === "/" ? fragment : schemaResource.anchors[fragment];
   if (typeof pointer !== "string") {
     return;
   }

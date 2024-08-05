@@ -44,8 +44,8 @@ describe("Feature - References", () => {
   test("don't return references that do not match location", async () => {
     const documentUri = await client.openDocument("./subject.schema.json", `{
   "$schema":"https://json-schema.org/draft/2020-12/schema",
-  "$ref": "#/definitions/locations", 
-  "definitions":{
+  "$ref": "#/$defs/locations", 
+  "$defs":{
     "names": {
       
     },
@@ -66,7 +66,6 @@ describe("Feature - References", () => {
 
     expect(response).to.eql([]);
   });
-
 
   test("match one reference", async () => {
     const documentUri = await client.openDocument("./subject.schema.json", `{

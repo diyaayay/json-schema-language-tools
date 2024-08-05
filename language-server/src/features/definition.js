@@ -1,6 +1,7 @@
+import { some } from "@hyperjump/pact";
 import * as SchemaDocument from "../schema-document.js";
 import * as SchemaNode from "../schema-node.js";
-import { getSchemaDocument, allSchemaDocuments } from "./schema-registry.js";
+import { getSchemaDocument } from "./schema-registry.js";
 import { keywordNameFor } from "../util.js";
 
 /** @import { Feature } from "../build-server.js" */
@@ -9,17 +10,41 @@ import { keywordNameFor } from "../util.js";
 /** @type Feature */
 export default {
   load(connection, documents) {
-    // const highlightBlockDialects = new Set([
-    //   "http://json-schema.org/draft-04/schema",
-    //   "http://json-schema.org/draft-06/schema",
-    //   "http://json-schema.org/draft-07/schema"
-    // ]);
-    // const shouldHighlightBlock = (/** @type {string | undefined} */ uri) => {
-    //   if (uri === undefined) {
-    //     return false;
-    //   }
-    //   return highlightBlockDialects.has(uri);
-    // };
+    const highlightBlockDialects = new Set([
+      "http://json-schema.org/draft-04/schema",
+      "http://json-schema.org/draft-06/schema",
+      "http://json-schema.org/draft-07/schema"
+    ]);
+
+    /** @type (node: SchemaNodeType) => boolean */
+    const isReference = (node) => {
+      if (!node.dialectUri) {
+        return false;
+      }
+
+      if (highlightBlockDialects.has(node.dialectUri)) {
+        // Legacy reference
+        const legacyRefToken = keywordNameFor("https://json-schema.org/keyword/draft-04/ref", node.dialectUri);
+        if (!node.parent) {
+          return false;
+        }
+
+        if (!node.parent.parent) {
+          return false;
+        }
+        const referenceNode = node.parent.parent;
+        return some((keywordNode) => SchemaNode.value(keywordNode) === legacyRefToken, SchemaNode.keys(referenceNode));
+      } else {
+        // Regular reference
+        if (!node.parent) {
+          return false;
+        }
+
+        const refToken = keywordNameFor("https://json-schema.org/keyword/ref", node.dialectUri);
+        const keyword = SchemaNode.value(node.parent?.children[0]);
+        return keyword === refToken;
+      }
+    };
 
     connection.onDefinition(async ({ textDocument, position }) => {
       const document = documents.get(textDocument.uri);
@@ -35,32 +60,23 @@ export default {
         return [];
       }
 
-      const targetSchemaUri = SchemaNode.uri(node);
-      const GotoDefinitions = [];
-
-      for (const schemaDocument of allSchemaDocuments()) {
-        for (const schemaResource of schemaDocument.schemaResources) {
-          for (const definitionNode of definitions(schemaResource)) {
-            const definition = SchemaNode.value(definitionNode);
-            const definedSchema = SchemaNode.get(definition, schemaResource);
-            if (!definedSchema) {
-              continue;
-            }
-
- // const hightlightNode = definitionNode;
-            if (SchemaNode.uri(definedSchema) === targetSchemaUri) {
-              GotoDefinitions.push({
-                uri: schemaDocument.textDocument.uri,
-                range: {
-                  start: schemaDocument.textDocument.positionAt(definedSchema),
-                  end: schemaDocument.textDocument.positionAt(definedSchema.offset + definedSchema.textLength)
-                }
-              });
-            }
-          }
-        }
+      if (!isReference(node)) {
+        return [];
       }
-      return GotoDefinitions;
+      const reference = SchemaNode.value(node);
+      const targetSchema = SchemaNode.get(reference, node);
+      if (!targetSchema) {
+        return [];
+      }
+      const gotoDefinitions = [{
+        uri: schemaDocument.textDocument.uri,
+        range: {
+          start: schemaDocument.textDocument.positionAt(targetSchema.offset),
+          end: schemaDocument.textDocument.positionAt(targetSchema.offset + targetSchema.textLength)
+        }
+      }];
+
+      return gotoDefinitions;
     });
   },
 
@@ -74,21 +90,5 @@ export default {
   },
 
   onShutdown() {
-  }
-};
-
- /** @type Type.definitions */
-const definitions = function* (schemaResource) {
-      // Define tokens or keywords used for definitions
-  const definitionToken = keywordNameFor("https://json-schema.org/keyword/definitions", schemaResource.dialectUri);
-  const DraftsDefinitionToken = keywordNameFor("https://json-schema.org/keyword/defs", schemaResource.dialectUri);
-
-  for (const node of SchemaNode.allNodes(schemaResource)) {
-    if (node.parent && SchemaNode.typeOf(node.parent) === "property") {
-      const keyword = SchemaNode.value(node.parent.children[0]);
-      if (keyword === definitionToken || keyword === DraftsDefinitionToken) {
-        yield node;
-      }
-    }
   }
 };
