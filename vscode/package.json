@@ -14,6 +14,7 @@
     "publish": "vsce publish"
   },
   "author": "Jason Desrosiers <jdesrosi@gmail.com>",
+  "publisher": "JasonDesrosiers",
   "license": "MIT",
   "repository": "github:hyperjump-io/json-schema-language-tools",
   "devDependencies": {
